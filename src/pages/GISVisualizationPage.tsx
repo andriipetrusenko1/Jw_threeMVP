@@ -1,7 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import * as THREE from 'three';
-import { Globe, Play, Pause, RotateCcw, Settings, Info, Download } from 'lucide-react';
+import { Globe, Play, Pause, RotateCcw, Settings, Info, Download, Menu, X, TrendingUp, Droplets, MapPin, Activity } from 'lucide-react';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from 'recharts';
 
 interface WaterFlowData {
   id: number;
@@ -26,6 +27,8 @@ export const GISVisualizationPage: React.FC = () => {
   const [isPlaying, setIsPlaying] = useState(true);
   const [selectedFlow, setSelectedFlow] = useState<WaterFlowData | null>(null);
   const [showControls, setShowControls] = useState(false);
+  const [showSidebar, setShowSidebar] = useState(true);
+  const [isMobile, setIsMobile] = useState(false);
 
   // Mock data for water flows
   const waterFlowData: WaterFlowData[] = [
@@ -64,7 +67,71 @@ export const GISVisualizationPage: React.FC = () => {
       volume: 2100000,
       timestamp: '2025-01-15T00:00:00Z'
     },
+    {
+      id: 6,
+      source: { country: 'Canada', lat: 56.1304, lng: -106.3468 },
+      destination: { country: 'United States', lat: 39.8283, lng: -98.5795 },
+      volume: 2600000,
+      timestamp: '2025-01-15T00:00:00Z'
+    },
+    {
+      id: 7,
+      source: { country: 'Australia', lat: -25.2744, lng: 133.7751 },
+      destination: { country: 'Indonesia', lat: -0.7893, lng: 113.9213 },
+      volume: 1200000,
+      timestamp: '2025-01-15T00:00:00Z'
+    },
   ];
+
+  // Aggregated data for dashboard
+  const totalVolume = waterFlowData.reduce((sum, flow) => sum + flow.volume, 0);
+  const topSources = waterFlowData
+    .reduce((acc, flow) => {
+      const existing = acc.find(item => item.country === flow.source.country);
+      if (existing) {
+        existing.volume += flow.volume;
+      } else {
+        acc.push({ country: flow.source.country, volume: flow.volume });
+      }
+      return acc;
+    }, [] as { country: string; volume: number }[])
+    .sort((a, b) => b.volume - a.volume)
+    .slice(0, 5);
+
+  const regionData = [
+    { name: 'North America', value: 35, volume: 4100000 },
+    { name: 'Asia', value: 28, volume: 6000000 },
+    { name: 'South America', value: 22, volume: 1800000 },
+    { name: 'Europe', value: 10, volume: 2100000 },
+    { name: 'Oceania', value: 5, volume: 1200000 },
+  ];
+
+  const timeSeriesData = [
+    { time: '00:00', volume: 2400 },
+    { time: '04:00', volume: 1398 },
+    { time: '08:00', volume: 9800 },
+    { time: '12:00', volume: 3908 },
+    { time: '16:00', volume: 4800 },
+    { time: '20:00', volume: 3800 },
+  ];
+
+  const COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6'];
+
+  // Check for mobile screen size
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 1024);
+      if (window.innerWidth < 1024) {
+        setShowSidebar(false);
+      } else {
+        setShowSidebar(true);
+      }
+    };
+
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   useEffect(() => {
     if (!mountRef.current) return;
@@ -135,7 +202,6 @@ export const GISVisualizationPage: React.FC = () => {
       mid.normalize().multiplyScalar(1 + height);
       
       const curve = new THREE.QuadraticBezierCurve3(start, mid, end);
-      const points = curve.getPoints(50);
       
       // Create tube geometry for the arc
       const tubeGeometry = new THREE.TubeGeometry(curve, 50, 0.005 + (volume / 10000000) * 0.02, 8, false);
@@ -281,144 +347,278 @@ export const GISVisualizationPage: React.FC = () => {
     }
   };
 
-  return (
-    <div className="min-h-screen bg-gray-900 relative">
-      {/* Header */}
-      <div className="absolute top-0 left-0 right-0 z-10 bg-black/20 backdrop-blur-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <motion.div
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8 }}
-            className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4"
-          >
-            <div>
-              <h1 className="text-3xl md:text-4xl font-bold text-white mb-2 flex items-center gap-3">
-                <Globe className="h-8 w-8 text-blue-400" />
-                3D Water Flow Visualization
-              </h1>
-              <p className="text-blue-200">
-                Interactive visualization of global groundwater extraction flows
-              </p>
-            </div>
-            
-            {/* Controls */}
-            <div className="flex items-center gap-4">
-              <button
-                onClick={() => setIsPlaying(!isPlaying)}
-                className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors"
-              >
-                {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
-                {isPlaying ? 'Pause' : 'Play'}
-              </button>
-              
-              <button
-                onClick={resetView}
-                className="flex items-center gap-2 bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg transition-colors"
-              >
-                <RotateCcw className="h-4 w-4" />
-                Reset
-              </button>
-              
-              <button
-                onClick={() => setShowControls(!showControls)}
-                className="flex items-center gap-2 bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg transition-colors"
-              >
-                <Settings className="h-4 w-4" />
-                Controls
-              </button>
-            </div>
-          </motion.div>
+  const StatCard = ({ title, value, icon: Icon, color, subtitle }: any) => (
+    <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/20">
+      <div className="flex items-center justify-between mb-2">
+        <div className={`p-2 rounded-lg ${color}`}>
+          <Icon className="h-4 w-4 text-white" />
+        </div>
+        <div className="text-right">
+          <div className="text-lg font-bold text-white">{value}</div>
+          <div className="text-xs text-gray-300">{subtitle}</div>
         </div>
       </div>
+      <div className="text-sm text-gray-300">{title}</div>
+    </div>
+  );
 
-      {/* 3D Visualization */}
-      <div ref={mountRef} className="w-full h-screen" />
+  return (
+    <div className="min-h-screen bg-gray-900 relative flex">
+      {/* Main Visualization Area */}
+      <div className={`flex-1 relative transition-all duration-300 ${showSidebar && !isMobile ? 'mr-80' : ''}`}>
+        {/* Header */}
+        <div className="absolute top-0 left-0 right-0 z-10 bg-black/20 backdrop-blur-sm">
+          <div className="px-4 sm:px-6 lg:px-8 py-4">
+            <motion.div
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.8 }}
+              className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4"
+            >
+              <div className="flex items-center gap-3">
+                <Globe className="h-6 w-6 text-blue-400" />
+                <div>
+                  <h1 className="text-xl sm:text-2xl font-bold text-white">
+                    3D Water Flow Visualization
+                  </h1>
+                  <p className="text-blue-200 text-sm hidden sm:block">
+                    Interactive visualization of global groundwater flows
+                  </p>
+                </div>
+              </div>
+              
+              {/* Controls */}
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setShowSidebar(!showSidebar)}
+                  className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg transition-colors text-sm"
+                >
+                  {showSidebar ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
+                  {isMobile ? '' : (showSidebar ? 'Hide' : 'Show')} Dashboard
+                </button>
+                
+                <button
+                  onClick={() => setIsPlaying(!isPlaying)}
+                  className="flex items-center gap-2 bg-gray-600 hover:bg-gray-700 text-white px-3 py-2 rounded-lg transition-colors text-sm"
+                >
+                  {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+                  <span className="hidden sm:inline">{isPlaying ? 'Pause' : 'Play'}</span>
+                </button>
+                
+                <button
+                  onClick={resetView}
+                  className="flex items-center gap-2 bg-gray-600 hover:bg-gray-700 text-white px-3 py-2 rounded-lg transition-colors text-sm"
+                >
+                  <RotateCcw className="h-4 w-4" />
+                  <span className="hidden sm:inline">Reset</span>
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        </div>
 
-      {/* Info Panel */}
-      <motion.div
-        initial={{ opacity: 0, x: 20 }}
-        animate={{ opacity: 1, x: 0 }}
-        transition={{ duration: 0.8, delay: 0.5 }}
-        className="absolute top-32 right-4 bg-black/80 backdrop-blur-md rounded-2xl p-6 max-w-sm text-white"
-      >
-        <div className="flex items-center gap-2 mb-4">
-          <Info className="h-5 w-5 text-blue-400" />
-          <h3 className="text-lg font-semibold">Visualization Guide</h3>
-        </div>
-        
-        <div className="space-y-3 text-sm">
-          <div className="flex items-center gap-3">
-            <div className="w-3 h-3 bg-red-500 rounded-full"></div>
-            <span>Source Countries</span>
-          </div>
-          <div className="flex items-center gap-3">
-            <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-            <span>Destination Countries</span>
-          </div>
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-1 bg-gradient-to-r from-blue-400 to-cyan-400 rounded"></div>
-            <span>Water Flow Arcs</span>
-          </div>
-          <div className="flex items-center gap-3">
-            <div className="w-2 h-2 bg-cyan-400 rounded-full animate-pulse"></div>
-            <span>Flow Particles</span>
-          </div>
-        </div>
-        
-        <div className="mt-4 pt-4 border-t border-gray-600">
-          <p className="text-xs text-gray-300">
-            Mouse: Rotate view • Arc thickness represents flow volume
-          </p>
-        </div>
-      </motion.div>
+        {/* 3D Visualization */}
+        <div ref={mountRef} className="w-full h-screen" />
 
-      {/* Data Panel */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.8, delay: 0.7 }}
-        className="absolute bottom-4 left-4 right-4 bg-black/80 backdrop-blur-md rounded-2xl p-6"
-      >
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-          <div>
-            <h3 className="text-lg font-semibold text-white mb-2">Active Water Flows</h3>
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
-              <div className="text-center">
-                <div className="text-2xl font-bold text-blue-400">{waterFlowData.length}</div>
+        {/* Mobile Info Panel */}
+        {isMobile && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.8, delay: 0.5 }}
+            className="absolute bottom-4 left-4 right-4 bg-black/80 backdrop-blur-md rounded-xl p-4 text-white"
+          >
+            <div className="grid grid-cols-2 gap-4 text-center text-sm">
+              <div>
+                <div className="text-lg font-bold text-blue-400">{waterFlowData.length}</div>
                 <div className="text-gray-300">Active Flows</div>
               </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-green-400">
-                  {(waterFlowData.reduce((sum, flow) => sum + flow.volume, 0) / 1000000).toFixed(1)}M
+              <div>
+                <div className="text-lg font-bold text-green-400">
+                  {(totalVolume / 1000000).toFixed(1)}M
                 </div>
                 <div className="text-gray-300">Total Volume (L)</div>
               </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-yellow-400">
-                  {new Set(waterFlowData.map(f => f.source.country)).size}
-                </div>
-                <div className="text-gray-300">Source Countries</div>
-              </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-purple-400">
-                  {new Set(waterFlowData.map(f => f.destination.country)).size}
-                </div>
-                <div className="text-gray-300">Destinations</div>
-              </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-cyan-400">Real-time</div>
-                <div className="text-gray-300">Data Status</div>
-              </div>
             </div>
-          </div>
-          
-          <button className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors">
-            <Download className="h-4 w-4" />
-            Export Data
-          </button>
-        </div>
-      </motion.div>
+          </motion.div>
+        )}
+      </div>
+
+      {/* Side Dashboard */}
+      <AnimatePresence>
+        {showSidebar && (
+          <motion.div
+            initial={{ x: isMobile ? '100%' : 320, opacity: 0 }}
+            animate={{ x: 0, opacity: 1 }}
+            exit={{ x: isMobile ? '100%' : 320, opacity: 0 }}
+            transition={{ duration: 0.3, ease: 'easeInOut' }}
+            className={`${
+              isMobile 
+                ? 'fixed inset-y-0 right-0 w-full bg-gray-900 z-50' 
+                : 'fixed right-0 top-0 bottom-0 w-80 bg-gray-900/95 backdrop-blur-md'
+            } border-l border-gray-700 overflow-y-auto`}
+          >
+            <div className="p-6 space-y-6">
+              {/* Dashboard Header */}
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-bold text-white">Analytics Dashboard</h2>
+                {isMobile && (
+                  <button
+                    onClick={() => setShowSidebar(false)}
+                    className="text-gray-400 hover:text-white"
+                  >
+                    <X className="h-6 w-6" />
+                  </button>
+                )}
+              </div>
+
+              {/* Key Metrics */}
+              <div className="grid grid-cols-2 gap-3">
+                <StatCard
+                  title="Total Volume"
+                  value={`${(totalVolume / 1000000).toFixed(1)}M L`}
+                  subtitle="Liters"
+                  icon={Droplets}
+                  color="bg-blue-500"
+                />
+                <StatCard
+                  title="Active Flows"
+                  value={waterFlowData.length}
+                  subtitle="Connections"
+                  icon={Activity}
+                  color="bg-green-500"
+                />
+                <StatCard
+                  title="Countries"
+                  value={new Set([...waterFlowData.map(f => f.source.country), ...waterFlowData.map(f => f.destination.country)]).size}
+                  subtitle="Involved"
+                  icon={MapPin}
+                  color="bg-purple-500"
+                />
+                <StatCard
+                  title="Avg Flow"
+                  value={`${(totalVolume / waterFlowData.length / 1000000).toFixed(1)}M L`}
+                  subtitle="Per Route"
+                  icon={TrendingUp}
+                  color="bg-orange-500"
+                />
+              </div>
+
+              {/* Top Sources Chart */}
+              <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/20">
+                <h3 className="text-lg font-semibold text-white mb-4">Top Source Countries</h3>
+                <ResponsiveContainer width="100%" height={200}>
+                  <BarChart data={topSources}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                    <XAxis 
+                      dataKey="country" 
+                      stroke="#9CA3AF" 
+                      fontSize={10}
+                      angle={-45}
+                      textAnchor="end"
+                      height={60}
+                    />
+                    <YAxis stroke="#9CA3AF" fontSize={10} />
+                    <Tooltip 
+                      contentStyle={{ 
+                        backgroundColor: '#1F2937', 
+                        border: '1px solid #374151', 
+                        borderRadius: '8px',
+                        color: '#F9FAFB'
+                      }} 
+                      formatter={(value: any) => [`${(value / 1000000).toFixed(1)}M L`, 'Volume']}
+                    />
+                    <Bar dataKey="volume" fill="#3B82F6" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+
+              {/* Regional Distribution */}
+              <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/20">
+                <h3 className="text-lg font-semibold text-white mb-4">Regional Distribution</h3>
+                <ResponsiveContainer width="100%" height={200}>
+                  <PieChart>
+                    <Pie
+                      data={regionData}
+                      cx="50%"
+                      cy="50%"
+                      outerRadius={70}
+                      dataKey="value"
+                      label={({ name, value }) => `${name}: ${value}%`}
+                      labelStyle={{ fontSize: '10px', fill: '#F9FAFB' }}
+                    >
+                      {regionData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip 
+                      contentStyle={{ 
+                        backgroundColor: '#1F2937', 
+                        border: '1px solid #374151', 
+                        borderRadius: '8px',
+                        color: '#F9FAFB'
+                      }} 
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+
+              {/* Time Series */}
+              <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/20">
+                <h3 className="text-lg font-semibold text-white mb-4">24h Flow Trend</h3>
+                <ResponsiveContainer width="100%" height={150}>
+                  <LineChart data={timeSeriesData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                    <XAxis dataKey="time" stroke="#9CA3AF" fontSize={10} />
+                    <YAxis stroke="#9CA3AF" fontSize={10} />
+                    <Tooltip 
+                      contentStyle={{ 
+                        backgroundColor: '#1F2937', 
+                        border: '1px solid #374151', 
+                        borderRadius: '8px',
+                        color: '#F9FAFB'
+                      }} 
+                    />
+                    <Line 
+                      type="monotone" 
+                      dataKey="volume" 
+                      stroke="#10B981" 
+                      strokeWidth={2}
+                      dot={{ fill: '#10B981', strokeWidth: 2, r: 3 }}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+
+              {/* Flow List */}
+              <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/20">
+                <h3 className="text-lg font-semibold text-white mb-4">Active Flows</h3>
+                <div className="space-y-2 max-h-60 overflow-y-auto">
+                  {waterFlowData.slice(0, 5).map((flow) => (
+                    <div key={flow.id} className="flex justify-between items-center p-2 bg-white/5 rounded-lg">
+                      <div className="text-sm">
+                        <div className="text-white font-medium">{flow.source.country}</div>
+                        <div className="text-gray-400 text-xs">→ {flow.destination.country}</div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-blue-400 font-semibold text-sm">
+                          {(flow.volume / 1000000).toFixed(1)}M L
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Export Button */}
+              <button className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white py-3 px-4 rounded-lg transition-colors">
+                <Download className="h-4 w-4" />
+                Export Dashboard Data
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Controls Panel */}
       {showControls && (
@@ -426,7 +626,7 @@ export const GISVisualizationPage: React.FC = () => {
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
           exit={{ opacity: 0, scale: 0.9 }}
-          className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-black/90 backdrop-blur-md rounded-2xl p-8 max-w-md w-full mx-4 text-white z-20"
+          className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-black/90 backdrop-blur-md rounded-2xl p-8 max-w-md w-full mx-4 text-white z-50"
         >
           <div className="flex justify-between items-center mb-6">
             <h3 className="text-xl font-semibold">Visualization Controls</h3>
@@ -434,7 +634,7 @@ export const GISVisualizationPage: React.FC = () => {
               onClick={() => setShowControls(false)}
               className="text-gray-400 hover:text-white transition-colors"
             >
-              ×
+              <X className="h-6 w-6" />
             </button>
           </div>
           
@@ -459,18 +659,6 @@ export const GISVisualizationPage: React.FC = () => {
                 max="1"
                 step="0.1"
                 defaultValue="0.8"
-                className="w-full"
-              />
-            </div>
-            
-            <div>
-              <label className="block text-sm font-medium mb-2">Particle Count</label>
-              <input
-                type="range"
-                min="1"
-                max="20"
-                step="1"
-                defaultValue="10"
                 className="w-full"
               />
             </div>
